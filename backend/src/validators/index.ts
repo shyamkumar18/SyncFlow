@@ -163,5 +163,7 @@ export const paginationSchema = Joi.object({
 });
 
 export const syncEmailSchema = Joi.object({
-  maxResults: Joi.number().min(1).max(500).default(50),
+  transactionLimit: Joi.number().min(1).max(5000),
+  bankingEmailLimit: Joi.number().min(1).max(2000),
+  fetchBatchSize: Joi.number().min(1).max(500),
 });

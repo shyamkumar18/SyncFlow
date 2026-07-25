@@ -99,8 +99,12 @@ export const getBanks = async (req: Request, res: Response, next: NextFunction) 
 
 export const sync = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { maxResults = 50 } = req.body;
-    const result = await syncGmailEmails(req.userId!, maxResults);
+    const { transactionLimit, bankingEmailLimit, fetchBatchSize } = req.body;
+    const result = await syncGmailEmails(req.userId!, {
+      transactionLimit,
+      bankingEmailLimit,
+      fetchBatchSize,
+    });
     res.json({ success: true, data: result });
   } catch (error) {
     next(error);

@@ -10,6 +10,7 @@ import AnalyticsPage from './pages/AnalyticsPage';
 import BudgetsPage from './pages/BudgetsPage';
 import HelpCentrePage from './pages/HelpCentrePage';
 import SettingsPage from './pages/SettingsPage';
+import EmailConnectionPage from './pages/EmailConnectionPage';
 import HomePage from './pages/HomePage';
 
 export default function App() {
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="/budgets" element={<BudgetsPage />} />
             <Route path="/help" element={<HelpCentrePage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/email-connection" element={<EmailConnectionPage />} />
           </Route>
         </Route>
 

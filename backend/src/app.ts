@@ -18,6 +18,7 @@ import goalRoutes from './routes/goals';
 import notificationRoutes from './routes/notifications';
 import settingsRoutes from './routes/settings';
 import analyticsRoutes from './routes/analytics';
+import emailModuleRoutes from './modules/email/routes';
 
 const app = express();
 
@@ -49,6 +50,7 @@ app.use('/api/goals', goalRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/email', emailModuleRoutes);
 
 app.use(errorHandler);
 

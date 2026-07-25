@@ -27,6 +27,7 @@ export const config = {
   googleClientId: process.env.GOOGLE_CLIENT_ID,
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
   googleRedirectUri: process.env.GOOGLE_REDIRECT_URI || 'http://localhost:5000/api/auth/google/callback',
+  emailRedirectUri: process.env.EMAIL_REDIRECT_URI || `http://localhost:${process.env.PORT || '5000'}/api/email/callback`,
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   rateLimitWindow: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
