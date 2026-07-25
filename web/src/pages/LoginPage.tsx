@@ -61,7 +61,7 @@ export default function LoginPage() {
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300 dark:border-gray-600" /></div>
               <div className="relative flex justify-center text-sm"><span className="px-2 bg-white dark:bg-[#1A1D21] text-gray-500">or</span></div>
             </div>
-            <button onClick={() => { const apiUrl = import.meta.env.VITE_API_URL || '/api'; window.location.href = `${apiUrl}/auth/google`; }}
+            <button onClick={() => { const base = (import.meta.env.VITE_API_URL || '/api').replace(/\/api\/?$/, ''); window.location.href = `${base}/api/auth/google`; }}
               className="w-full mt-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-[#23272E] transition-colors flex items-center justify-center gap-2">
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
