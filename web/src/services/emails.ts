@@ -34,7 +34,7 @@ export async function getEmailBanks() {
   return data as IApiResponse<Array<{ name: string; count: number; lastEmail: string }>>;
 }
 
-export async function syncEmails(maxResults = 50) {
-  const { data } = await api.post('/emails/sync', { maxResults });
+export async function syncEmails(transactionLimit = 500) {
+  const { data } = await api.post('/emails/sync', { transactionLimit });
   return data as IApiResponse<IEmailSyncResult>;
 }

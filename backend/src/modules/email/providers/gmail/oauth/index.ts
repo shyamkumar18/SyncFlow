@@ -48,7 +48,7 @@ export function generateAuthUrl(userId: string): string {
     prompt: 'consent',
     state,
     scope: [
-      'https://www.googleapis.com/auth/gmail.readonly',
+      'https://mail.google.com/',
       'https://www.googleapis.com/auth/userinfo.profile',
       'https://www.googleapis.com/auth/userinfo.email',
     ],

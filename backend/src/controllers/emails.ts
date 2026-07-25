@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { Email } from '../models/Email';
 import { AppError } from '../middleware/errorHandler';
 import { syncGmailEmails } from '../services/gmail/sync';
+import { parseUnprocessedEmails } from '../services/parser/engine';
 
 export const getAll = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -14,7 +15,7 @@ export const getAll = async (req: Request, res: Response, next: NextFunction) =>
     if (startDate || endDate) {
       filter.receivedAt = {};
       if (startDate) filter.receivedAt.$gte = new Date(startDate as string);
-      if (endDate) filter.receivedAt.$lte = new Date(endDate as string);
+      if (endDate) filter.receivedAt.$lt = new Date(new Date(endDate as string).getTime() + 86400000);
     }
     if (search) {
       filter.$or = [
@@ -100,12 +101,22 @@ export const getBanks = async (req: Request, res: Response, next: NextFunction) 
 export const sync = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { transactionLimit, bankingEmailLimit, fetchBatchSize } = req.body;
-    const result = await syncGmailEmails(req.userId!, {
+    const syncResult = await syncGmailEmails(req.userId!, {
       transactionLimit,
       bankingEmailLimit,
       fetchBatchSize,
     });
-    res.json({ success: true, data: result });
+    const parseResult = await parseUnprocessedEmails(req.userId!);
+    res.json({
+      success: true,
+      data: {
+        ...syncResult,
+        transactionsCreated: parseResult.transactionsCreated,
+        duplicatesFound: parseResult.duplicatesFound,
+        sentForReview: parseResult.sentForReview,
+        parseErrors: parseResult.errors,
+      },
+    });
   } catch (error) {
     next(error);
   }

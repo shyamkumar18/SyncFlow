@@ -6,7 +6,7 @@ import { AppError } from './errorHandler';
 export function authenticate(req: Request, _res: Response, next: NextFunction) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith('Bearer ')) {
-    throw new AppError('Authentication required', 401);
+    return next(new AppError('Authentication required', 401));
   }
 
   const token = header.split(' ')[1];
@@ -17,8 +17,8 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
     next();
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {
-      throw new AppError('Token expired', 401);
+      return next(new AppError('Token expired', 401));
     }
-    throw new AppError('Invalid token', 401);
+    return next(new AppError('Invalid token', 401));
   }
 }

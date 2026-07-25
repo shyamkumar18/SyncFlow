@@ -12,6 +12,7 @@ router.get('/monthly-trend', controller.monthlyTrend);
 router.get('/bank-distribution', controller.bankDistribution);
 router.get('/card-spending', controller.cardSpending);
 router.get('/cash-flow', controller.cashFlow);
+router.get('/yearly-overview', controller.yearlyOverview);
 router.get('/export', controller.exportData);
 
 export default router;

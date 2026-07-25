@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import * as emailConnectionService from '../services/emailConnection';
+import Card from '../components/ui/Card';
+import Button from '../components/ui/Button';
+import { CardSkeleton } from '../components/ui/Skeleton';
 
 export default function EmailConnectionPage() {
   const [connection, setConnection] = useState<emailConnectionService.EmailConnectionStatus | null>(null);
@@ -17,86 +20,27 @@ export default function EmailConnectionPage() {
       const params = new URLSearchParams(window.location.search);
       const emailConnected = params.get('email_connected');
       const emailError = params.get('email_error');
-
-      if (emailConnected) {
-        setSuccessMsg(`Successfully connected ${emailConnected}`);
-      }
-      if (emailError) {
-        setError(decodeURIComponent(emailError));
-      }
-
+      if (emailConnected) setSuccessMsg(`Successfully connected ${emailConnected}`);
+      if (emailError) setError(decodeURIComponent(emailError));
       const status = await emailConnectionService.getConnectionStatus();
       setConnection(status);
-    } catch {
-      setError('Failed to load connection status');
-    } finally {
-      setLoading(false);
-    }
+    } catch { setError('Failed to load connection status'); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchStatus();
-  }, []);
+  useEffect(() => { fetchStatus(); }, []);
 
-  const handleConnect = async () => {
-    setConnecting(true);
-    setError('');
-    try {
-      const url = await emailConnectionService.getConnectUrl();
-      window.location.href = url;
-    } catch {
-      setError('Failed to generate connection URL');
-      setConnecting(false);
-    }
-  };
-
-  const handleDisconnect = async () => {
-    setConnecting(true);
-    setError('');
-    try {
-      await emailConnectionService.disconnectGmail();
-      setConnection(null);
-      setTestResult(null);
-    } catch {
-      setError('Failed to disconnect');
-    } finally {
-      setConnecting(false);
-    }
-  };
-
-  const handleTest = async () => {
-    setTesting(true);
-    setError('');
-    setTestResult(null);
-    try {
-      const result = await emailConnectionService.testConnection();
-      setTestResult(result);
-    } catch {
-      setTestResult({ success: false, message: 'Connection test failed' });
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return <div className="space-y-6 max-w-2xl"><h2 className="text-2xl font-bold text-gray-900 dark:text-white">Gmail Connection</h2><CardSkeleton count={2} /></div>;
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-2xl animate-fade-in">
       <div>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Gmail Connection</h2>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Connect your Gmail account to auto-import financial emails
-        </p>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Connect your Gmail account to auto-import financial emails</p>
       </div>
 
       {successMsg && (
-        <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+        <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl animate-slide-up">
           <p className="text-sm text-green-600 dark:text-green-400">{successMsg}</p>
         </div>
       )}
@@ -107,7 +51,7 @@ export default function EmailConnectionPage() {
         </div>
       )}
 
-      <div className="p-6 bg-white dark:bg-[#23272E] rounded-xl border border-gray-200 dark:border-gray-700">
+      <Card>
         {!connection?.connected ? (
           <div className="text-center py-6">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 dark:bg-[#2D323A] flex items-center justify-center">
@@ -119,9 +63,9 @@ export default function EmailConnectionPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
               Connect your Gmail to automatically scan for transaction emails, bills, and financial updates.
             </p>
-            <button onClick={handleConnect} disabled={connecting} className="btn-primary">
-              {connecting ? 'Redirecting...' : 'Connect Gmail'}
-            </button>
+            <Button onClick={async () => { setConnecting(true); try { const url = await emailConnectionService.getConnectUrl(); window.location.href = url; } catch { setError('Failed to generate connection URL'); setConnecting(false); } }} loading={connecting}>
+              Connect Gmail
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">
@@ -134,31 +78,20 @@ export default function EmailConnectionPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-900 dark:text-white">{connection.email}</p>
-                  <p className="text-xs text-gray-500">{connection.provider} &middot; {connection.status}</p>
+                  <p className="text-xs text-gray-500">{connection.provider} · {connection.status}</p>
                 </div>
               </div>
-              <button onClick={handleDisconnect} disabled={connecting} className="text-sm text-red-600 dark:text-red-400 hover:underline">
-                Disconnect
-              </button>
+              <Button variant="secondary" size="sm" onClick={async () => { setConnecting(true); try { await emailConnectionService.disconnectGmail(); setConnection(null); setTestResult(null); } finally { setConnecting(false); } }}>Disconnect</Button>
             </div>
-
             {connection.lastConnected && (
-              <p className="text-xs text-gray-400">
-                Last connected: {new Date(connection.lastConnected).toLocaleString()}
-              </p>
+              <p className="text-xs text-gray-400">Last connected: {new Date(connection.lastConnected).toLocaleString()}</p>
             )}
-
             <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-              <button onClick={handleTest} disabled={testing} className="btn-secondary text-sm">
-                {testing ? 'Testing...' : 'Test Connection'}
-              </button>
-
+              <Button variant="secondary" size="sm" loading={testing} onClick={async () => { setTesting(true); try { const result = await emailConnectionService.testConnection(); setTestResult(result); if (!result.success) await fetchStatus(); } catch { setTestResult({ success: false, message: 'Connection test failed' }); await fetchStatus(); } finally { setTesting(false); } }}>
+                Test Connection
+              </Button>
               {testResult && (
-                <div className={`mt-3 p-3 rounded-lg text-sm ${
-                  testResult.success
-                    ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
-                    : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                }`}>
+                <div className={`mt-3 p-3 rounded-lg text-sm ${testResult.success ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'}`}>
                   <p>{testResult.message}</p>
                   {testResult.latency && <p className="text-xs mt-1">Latency: {testResult.latency}ms</p>}
                 </div>
@@ -166,7 +99,7 @@ export default function EmailConnectionPage() {
             </div>
           </div>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

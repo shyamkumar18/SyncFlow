@@ -19,3 +19,6 @@ export { auSmallFinanceProvider } from './auSmallFinance';
 export { sliceProvider } from './slice';
 export { fiProvider } from './fi';
 export { jupiterProvider } from './jupiter';
+export { bankOfIndiaProvider } from './bankOfIndia';
+export { equitasProvider } from './equitas';
+export { ujjivanProvider } from './ujjivan';

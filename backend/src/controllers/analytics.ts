@@ -1,15 +1,20 @@
 import mongoose from 'mongoose';
 import { Request, Response, NextFunction } from 'express';
 import { Transaction } from '../models/Transaction';
+import { Category } from '../models/Category';
 import { Setting } from '../models/Setting';
+import { getFinancialSummary, monthStart, yearStart } from '../services/FinancialSummaryService';
 
 export const getOverview = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const userId = req.userId!;
 
-    const settings = await Setting.findOne({ userId: req.userId }).lean();
+    const { startDate, endDate } = req.query;
+    const rangeStart = startDate ? new Date(startDate as string) : monthStart();
+    const rangeEnd = endDate ? new Date(endDate as string) : undefined;
+
+    const settings = await Setting.findOne({ userId }).lean();
 
     const [
       monthlySummary,
@@ -17,20 +22,14 @@ export const getOverview = async (req: Request, res: Response, next: NextFunctio
       recentTransactions,
       monthlyCashFlow,
     ] = await Promise.all([
-      Transaction.aggregate([
-        { $match: { userId: new mongoose.Types.ObjectId(req.userId), date: { $gte: startOfMonth } } },
-        { $group: { _id: '$type', total: { $sum: '$amount' } } },
-      ]),
-      Transaction.aggregate([
-        { $match: { userId: new mongoose.Types.ObjectId(req.userId), date: { $gte: startOfYear } } },
-        { $group: { _id: '$type', total: { $sum: '$amount' } } },
-      ]),
-      Transaction.find({ userId: req.userId })
+      getFinancialSummary({ userId, startDate: rangeStart, endDate: rangeEnd }),
+      getFinancialSummary({ userId, startDate: yearStart() }),
+      Transaction.find({ userId })
         .sort({ date: -1 })
         .limit(10)
         .lean(),
       Transaction.aggregate([
-        { $match: { userId: new mongoose.Types.ObjectId(req.userId), date: { $gte: new Date(now.getFullYear() - 1, now.getMonth(), 1) } } },
+        { $match: { userId: new mongoose.Types.ObjectId(userId), date: { $gte: new Date(now.getFullYear() - 1, now.getMonth(), 1) } } },
         {
           $group: {
             _id: { year: { $year: '$date' }, month: { $month: '$date' } },
@@ -42,20 +41,15 @@ export const getOverview = async (req: Request, res: Response, next: NextFunctio
       ]),
     ]);
 
-    const monthlyIncome = monthlySummary.find((s) => s._id === 'credit')?.total || 0;
-    const monthlyExpense = monthlySummary.find((s) => s._id === 'debit')?.total || 0;
-    const yearlyIncome = yearlySummary.find((s) => s._id === 'credit')?.total || 0;
-    const yearlyExpense = yearlySummary.find((s) => s._id === 'debit')?.total || 0;
-
     res.json({
       success: true,
       data: {
-        totalIncome: monthlyIncome,
-        totalExpense: monthlyExpense,
-        savings: monthlyIncome - monthlyExpense,
-        yearIncome: yearlyIncome,
-        yearExpense: yearlyExpense,
-        yearSavings: yearlyIncome - yearlyExpense,
+        totalIncome: monthlySummary.totalIncome,
+        totalExpense: monthlySummary.totalExpense,
+        savings: monthlySummary.netSavings,
+        yearIncome: yearlySummary.totalIncome,
+        yearExpense: yearlySummary.totalExpense,
+        yearSavings: yearlySummary.netSavings,
         monthlyIncome: settings?.monthlyIncome || 0,
         cashFlow: monthlyCashFlow.map((c) => ({
           month: c._id.month,
@@ -80,12 +74,18 @@ export const spendingByCategory = async (req: Request, res: Response, next: Next
     if (startDate || endDate) {
       filter.date = {};
       if (startDate) filter.date.$gte = new Date(startDate as string);
-      if (endDate) filter.date.$lte = new Date(endDate as string);
+      if (endDate) filter.date.$lt = new Date(new Date(endDate as string).getTime() + 86400000);
     }
 
     const categories = await Transaction.aggregate([
       { $match: filter },
-      { $group: { _id: '$category', total: { $sum: '$amount' }, count: { $sum: 1 } } },
+      {
+        $group: {
+          _id: { $ifNull: ['$autoCategory', 'Uncategorized'] },
+          total: { $sum: '$amount' },
+          count: { $sum: 1 },
+        },
+      },
       { $sort: { total: -1 } },
     ]);
 
@@ -94,7 +94,7 @@ export const spendingByCategory = async (req: Request, res: Response, next: Next
     res.json({
       success: true,
       data: categories.map((c) => ({
-        categoryId: c._id,
+        categoryName: c._id,
         total: c.total,
         count: c.count,
         percentage: grandTotal > 0 ? Math.round((c.total / grandTotal) * 100) : 0,
@@ -113,7 +113,7 @@ export const spendingByMerchant = async (req: Request, res: Response, next: Next
     if (startDate || endDate) {
       filter.date = {};
       if (startDate) filter.date.$gte = new Date(startDate as string);
-      if (endDate) filter.date.$lte = new Date(endDate as string);
+      if (endDate) filter.date.$lt = new Date(new Date(endDate as string).getTime() + 86400000);
     }
 
     const merchants = await Transaction.aggregate([
@@ -169,8 +169,17 @@ export const monthlyTrend = async (req: Request, res: Response, next: NextFuncti
 
 export const bankDistribution = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const { startDate, endDate } = req.query;
+    const userId = new mongoose.Types.ObjectId(req.userId);
+    const filter: any = { userId, type: 'debit' };
+    if (startDate || endDate) {
+      filter.date = {};
+      if (startDate) filter.date.$gte = new Date(startDate as string);
+      if (endDate) filter.date.$lt = new Date(new Date(endDate as string).getTime() + 86400000);
+    }
+
     const banks = await Transaction.aggregate([
-      { $match: { userId: new mongoose.Types.ObjectId(req.userId), type: 'debit' } },
+      { $match: filter },
       { $group: { _id: '$bank', total: { $sum: '$amount' }, count: { $sum: 1 } } },
       { $sort: { total: -1 } },
     ]);
@@ -198,7 +207,7 @@ export const cardSpending = async (req: Request, res: Response, next: NextFuncti
     if (startDate || endDate) {
       filter.date = {};
       if (startDate) filter.date.$gte = new Date(startDate as string);
-      if (endDate) filter.date.$lte = new Date(endDate as string);
+      if (endDate) filter.date.$lt = new Date(new Date(endDate as string).getTime() + 86400000);
     }
 
     const cards = await Transaction.aggregate([
@@ -215,6 +224,73 @@ export const cardSpending = async (req: Request, res: Response, next: NextFuncti
         total: c.total,
         count: c.count,
       })),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+function fillMonthlyGaps(data: Array<{ _id: { year: number; month: number } } & Record<string, number>>, startYear: number, endYear: number): Array<{ month: number; year: number } & Record<string, number>> {
+  const all: Array<{ month: number; year: number } & Record<string, number>> = [];
+  for (let y = startYear; y <= endYear; y++) {
+    for (let m = 1; m <= 12; m++) {
+      const entry = data.find(d => d._id.year === y && d._id.month === m);
+      const base: Record<string, number> = {};
+      const keys = data.length > 0 ? Object.keys(data[0]).filter(k => k !== '_id') : ['income', 'expense', 'count'];
+      for (const k of keys) base[k] = entry?.[k] ?? 0;
+      all.push({ month: m, year: y, ...base } as any);
+    }
+  }
+  return all;
+}
+
+export const yearlyOverview = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const year = parseInt(req.query.year as string) || new Date().getFullYear();
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59);
+    const userId = new mongoose.Types.ObjectId(req.userId);
+
+    const byMonth = await Transaction.aggregate([
+      { $match: { userId, date: { $gte: startDate, $lte: endDate } } },
+      {
+        $group: {
+          _id: { year: { $year: '$date' }, month: { $month: '$date' } },
+          income: { $sum: { $cond: [{ $eq: ['$type', 'credit'] }, '$amount', 0] } },
+          expense: { $sum: { $cond: [{ $eq: ['$type', 'debit'] }, '$amount', 0] } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } },
+    ]);
+
+    const monthly = fillMonthlyGaps(byMonth, year, year);
+    const totalIncome = monthly.reduce((s, m) => s + m.income, 0);
+    const totalExpense = monthly.reduce((s, m) => s + m.expense, 0);
+    const bestMonth = monthly.reduce((a, b) => (a.income - a.expense) > (b.income - b.expense) ? a : b, monthly[0] || { month: 1, year, income: 0, expense: 0, count: 0 });
+    const worstMonth = monthly.reduce((a, b) => (a.income - a.expense) < (b.income - b.expense) ? a : b, monthly[0] || { month: 1, year, income: 0, expense: 0, count: 0 });
+    const highestIncome = [...monthly].sort((a, b) => b.income - a.income)[0];
+    const highestExpense = [...monthly].sort((a, b) => b.expense - a.expense)[0];
+    const avgMonthlySpend = totalExpense / 12;
+    const avgDaily = totalExpense / 365;
+
+    res.json({
+      success: true,
+      data: {
+        year,
+        monthly,
+        totalIncome,
+        totalExpense,
+        netSavings: totalIncome - totalExpense,
+        totalTransactions: monthly.reduce((s, m) => s + m.count, 0),
+        bestMonth: { month: bestMonth.month, savings: bestMonth.income - bestMonth.expense },
+        worstMonth: { month: worstMonth.month, savings: worstMonth.income - worstMonth.expense },
+        highestIncomeMonth: { month: highestIncome.month, amount: highestIncome.income },
+        highestExpenseMonth: { month: highestExpense.month, amount: highestExpense.expense },
+        avgMonthlySpend,
+        avgDaily,
+        monthsWithData: byMonth.length,
+      },
     });
   } catch (error) {
     next(error);
@@ -261,7 +337,7 @@ export const exportData = async (req: Request, res: Response, next: NextFunction
     if (startDate || endDate) {
       filter.date = {};
       if (startDate) filter.date.$gte = new Date(startDate as string);
-      if (endDate) filter.date.$lte = new Date(endDate as string);
+      if (endDate) filter.date.$lt = new Date(new Date(endDate as string).getTime() + 86400000);
     }
 
     const transactions = await Transaction.find(filter).sort({ date: -1 }).lean();

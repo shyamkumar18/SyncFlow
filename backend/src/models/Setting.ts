@@ -45,6 +45,6 @@ const settingSchema = new Schema<ISetting>(
   { timestamps: true },
 );
 
-settingSchema.index({ userId: 1 }, { unique: true });
+// Index is defined via field-level unique constraint above
 
 export const Setting = mongoose.models.Setting || mongoose.model<ISetting>('Setting', settingSchema);

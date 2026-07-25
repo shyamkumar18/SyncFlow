@@ -6,7 +6,7 @@ export function validate(schema: ObjectSchema) {
   return (req: Request, _res: Response, next: NextFunction) => {
     const { error } = schema.validate(req.body, { abortEarly: false });
     if (error) {
-      throw new AppError('Validation failed', 400);
+      return next(new AppError('Validation failed', 400));
     }
     next();
   };

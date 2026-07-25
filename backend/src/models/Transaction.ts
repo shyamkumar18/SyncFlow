@@ -11,6 +11,7 @@ export interface ITransaction extends Document {
   time?: string;
   description?: string;
   merchant?: string;
+  merchantRaw?: string;
   sender?: string;
   receiver?: string;
   balance?: number;
@@ -21,10 +22,15 @@ export interface ITransaction extends Document {
   cardNumber?: string;
   status: typeof TRANSACTION_STATUSES[number];
   category?: mongoose.Types.ObjectId;
+  autoCategory?: string;
+  categoryConfidence?: number;
   tags: string[];
   notes?: string;
   isRecurring: boolean;
   isManual: boolean;
+  transactionFingerprint?: string;
+  duplicateGroupId?: string;
+  normalized?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +46,7 @@ const transactionSchema = new Schema<ITransaction>(
     time: String,
     description: String,
     merchant: String,
+    merchantRaw: String,
     sender: String,
     receiver: String,
     balance: Number,
@@ -50,10 +57,15 @@ const transactionSchema = new Schema<ITransaction>(
     cardNumber: String,
     status: { type: String, enum: TRANSACTION_STATUSES, default: 'success' },
     category: { type: Schema.Types.ObjectId, ref: 'Category' },
+    autoCategory: String,
+    categoryConfidence: Number,
     tags: [String],
     notes: String,
     isRecurring: { type: Boolean, default: false },
     isManual: { type: Boolean, default: false },
+    transactionFingerprint: { type: String, index: true },
+    duplicateGroupId: String,
+    normalized: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

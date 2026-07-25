@@ -45,20 +45,20 @@ export async function getProfile(userId: string): Promise<EmailProfile> {
 export async function testEmailConnection(userId: string): Promise<EmailTestResult> {
   const account = await GmailAccount.findOne({ userId: userId as any });
   if (!account) {
-    return { success: false, message: 'No Gmail account connected' };
+    return { success: false, message: 'No Gmail account connected. Please connect Gmail first.' };
   }
 
   try {
-    const latencyMs = await gmailImap.testConnection(userId, account.gmailEmail);
+    const result = await gmailImap.testConnection(userId, account.gmailEmail);
     return {
       success: true,
       message: 'IMAP connection successful',
-      latencyMs,
+      latency: result.latencyMs,
     };
   } catch (err: any) {
     return {
       success: false,
-      message: `IMAP connection failed: ${err.message}`,
+      message: err.message,
     };
   }
 }

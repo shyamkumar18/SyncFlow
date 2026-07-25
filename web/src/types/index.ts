@@ -21,6 +21,7 @@ export interface ITransaction {
   time?: string;
   description?: string;
   merchant?: string;
+  merchantRaw?: string;
   sender?: string;
   receiver?: string;
   balance?: number;
@@ -29,11 +30,42 @@ export interface ITransaction {
   bank: string;
   cardType?: 'credit' | 'debit' | 'unknown';
   status: 'success' | 'failed' | 'pending' | 'refunded';
+  autoCategory?: string;
   category?: string;
+  categoryConfidence?: number;
   tags: string[];
   notes?: string;
   isRecurring: boolean;
   isManual: boolean;
+  transactionFingerprint?: string;
+  duplicateGroupId?: string;
+  normalized?: boolean;
+}
+
+export interface IReviewItem {
+  _id: string;
+  userId: string;
+  emailId?: string;
+  amount: number;
+  type: 'debit' | 'credit';
+  date: string;
+  time?: string;
+  description?: string;
+  merchant?: string;
+  sender?: string;
+  receiver?: string;
+  balance?: number;
+  upiId?: string;
+  referenceNumber?: string;
+  bank: string;
+  status: 'pending' | 'approved' | 'rejected' | 'edited';
+  reviewNotes?: string;
+  confidence: number;
+  detectionDetails?: string;
+  transactionId?: string;
+  reviewedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface IEmail {

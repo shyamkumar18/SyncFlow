@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { AppError } from '../../../middleware/errorHandler';
 import { GmailAccount } from '../../../models/GmailAccount';
+import { config } from '../../../config/env';
 import * as emailService from '../services';
 import * as gmailOauth from '../providers/gmail/oauth';
 
@@ -18,7 +18,8 @@ export async function connect(req: Request, res: Response, next: NextFunction) {
     const userId = (req as any).userId;
     const existing = await GmailAccount.findOne({ userId }).lean();
     if (existing) {
-      throw new AppError('Gmail account already connected', 400);
+      await gmailOauth.revokeTokens(userId);
+      await GmailAccount.findOneAndDelete({ userId }).lean();
     }
     const url = gmailOauth.generateAuthUrl(userId);
     res.json({ success: true, data: { url } });
@@ -28,7 +29,7 @@ export async function connect(req: Request, res: Response, next: NextFunction) {
 }
 
 export async function callback(req: Request, res: Response, _next: NextFunction) {
-  const origin = 'http://localhost:5173';
+  const origin = config.corsOrigin;
 
   try {
     const { code, state, error: oauthError } = req.query;
@@ -55,8 +56,9 @@ export async function callback(req: Request, res: Response, _next: NextFunction)
     res.redirect(
       `${origin}/email-connection?email_connected=${encodeURIComponent(profileData.email)}`,
     );
-  } catch {
-    res.redirect(`${origin}/email-connection?email_error=connection_failed`);
+  } catch (err: any) {
+    const msg = err?.message || 'connection_failed';
+    res.redirect(`${origin}/email-connection?email_error=${encodeURIComponent(msg)}`);
   }
 }
 

@@ -20,5 +20,5 @@ export interface EmailProfile {
 export interface EmailTestResult {
   success: boolean;
   message: string;
-  latencyMs?: number;
+  latency?: number;
 }

@@ -1,9 +1,8 @@
 import { google } from 'googleapis';
 import { Email } from '../../models/Email';
 import { GmailAccount } from '../../models/GmailAccount';
-import { getStoredAuth } from '../google';
-import { detectBank } from './bankDetection';
-import { categorizeEmail } from './categorizer';
+import { getAccessToken } from '../../modules/email/providers/gmail/oauth';
+import { getBankDetector } from '../../modules/bankDetection';
 import { resolveConfig, type SyncConfigOverrides } from '../../modules/email/config';
 
 const BANK_QUERY = '("debited" OR "credited" OR "transaction" OR "upi" OR "trf" OR "withdrawn" OR "deposited" OR "statement" OR "emi" OR "refund" OR "card" OR "atm" OR "balance" OR "account" OR "loan" OR "credit card" OR "debit card" OR "payment")';
@@ -31,10 +30,7 @@ export async function syncGmailEmails(
   };
 
   try {
-    const auth = await getStoredAuth(userId);
-    if (!auth) {
-      throw new Error('Google authentication not found. Please reconnect Gmail.');
-    }
+    const accessToken = await getAccessToken(userId);
 
     const gmailAccount = await GmailAccount.findOne({ userId }).lean();
     if (!gmailAccount) {
@@ -45,10 +41,7 @@ export async function syncGmailEmails(
     result.syncMode = isFirstSync ? 'first_sync' : 'incremental';
 
     const oauth2Client = new google.auth.OAuth2();
-    oauth2Client.setCredentials({
-      access_token: auth.accessToken,
-      refresh_token: auth.refreshToken,
-    });
+    oauth2Client.setCredentials({ access_token: accessToken });
 
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
@@ -61,7 +54,6 @@ export async function syncGmailEmails(
 
     let pageToken: string | undefined;
     let transactionCount = 0;
-    let bankingCount = 0;
 
     await GmailAccount.findOneAndUpdate(
       { userId },
@@ -83,23 +75,23 @@ export async function syncGmailEmails(
 
       if (messages.length === 0) break;
 
+      const messageIds = messages.map(m => m.id!).filter(Boolean);
+      const existingEmails = await Email.find({
+        userId,
+        gmailMessageId: { $in: messageIds },
+      }).lean();
+      const existingIds = new Set(existingEmails.map((e: any) => e.gmailMessageId));
+
+      const newMessages = messages.filter(m => m.id && !existingIds.has(m.id));
+      result.processed += messages.length - newMessages.length;
+
       const batch: any[] = [];
 
-      for (const msg of messages) {
+      const fetchDetail = async (msgId: string) => {
         try {
-          const existingEmail = await Email.findOne({
-            userId,
-            gmailMessageId: msg.id,
-          });
-
-          if (existingEmail) {
-            result.processed++;
-            continue;
-          }
-
           const detail = await gmail.users.messages.get({
             userId: 'me',
-            id: msg.id!,
+            id: msgId,
             format: 'full',
           });
 
@@ -131,31 +123,25 @@ export async function syncGmailEmails(
 
           const snippet = detail.data.snippet || '';
 
-          const { bank } = detectBank(from, subject, `${snippet} ${bodyText} ${body}`);
+          const detection = getBankDetector().detect({
+            from,
+            subject,
+            body: `${snippet} ${bodyText} ${body}`,
+          });
 
-          if (bank === 'Unknown') {
+          if (detection.providerId === 'unknown') {
             result.processed++;
-            continue;
+            return;
           }
 
-          const category = categorizeEmail(subject, `${bodyText} ${body}`);
-          const isTransaction = category !== 'statement' && category !== 'unknown';
-
-          if (isTransaction) {
-            if (transactionCount >= config.transactionLimit) {
-              continue;
-            }
-            transactionCount++;
-          } else {
-            if (bankingCount >= config.bankingEmailLimit) {
-              continue;
-            }
-            bankingCount++;
+          if (transactionCount >= config.transactionLimit) {
+            return;
           }
+          transactionCount++;
 
           batch.push({
             userId,
-            gmailMessageId: msg.id,
+            gmailMessageId: msgId,
             threadId: detail.data.threadId || '',
             from,
             to,
@@ -164,26 +150,31 @@ export async function syncGmailEmails(
             bodyText,
             snippet,
             receivedAt,
-            category,
-            bank,
+            category: 'transaction',
+            bank: detection.providerName,
             isProcessed: false,
-            hasTransaction: isTransaction,
+            hasTransaction: true,
           });
 
           result.newEmails++;
-          if (isTransaction) result.newTransactions++;
-          else result.bankingEmails++;
+          result.newTransactions++;
         } catch (err: any) {
           result.failed++;
-          result.errors.push(`Message ${msg.id}: ${err.message}`);
+          result.errors.push(`Message ${msgId}: ${err.message}`);
         }
+      };
+
+      const concurrency = 5;
+      for (let i = 0; i < newMessages.length; i += concurrency) {
+        const chunk = newMessages.slice(i, i + concurrency);
+        await Promise.all(chunk.map(m => fetchDetail(m.id!)));
       }
 
       if (batch.length > 0) {
         await Email.insertMany(batch, { ordered: false });
       }
 
-      if (transactionCount >= config.transactionLimit && bankingCount >= config.bankingEmailLimit) {
+      if (transactionCount >= config.transactionLimit) {
         result.reachedLimit = true;
         keepFetching = false;
       } else if (!isFirstSync) {

@@ -64,10 +64,27 @@ export interface CashFlowPoint {
   income: number;
   expense: number;
   net: number;
+  count?: number;
 }
 
-export async function getOverview() {
-  const { data } = await api.get('/analytics/overview');
+export interface YearlyOverview {
+  year: number;
+  monthly: CashFlowPoint[];
+  totalIncome: number;
+  totalExpense: number;
+  netSavings: number;
+  totalTransactions: number;
+  bestMonth: { month: number; savings: number };
+  worstMonth: { month: number; savings: number };
+  highestIncomeMonth: { month: number; amount: number };
+  highestExpenseMonth: { month: number; amount: number };
+  avgMonthlySpend: number;
+  avgDaily: number;
+  monthsWithData: number;
+}
+
+export async function getOverview(params?: Record<string, string>) {
+  const { data } = await api.get('/analytics/overview', { params });
   return data as IApiResponse<DashboardOverview>;
 }
 
@@ -86,9 +103,14 @@ export async function getMonthlyTrend(params?: Record<string, string | number>) 
   return data as IApiResponse<MonthlyTrend[]>;
 }
 
-export async function getBankDistribution() {
-  const { data } = await api.get('/analytics/bank-distribution');
+export async function getBankDistribution(params?: Record<string, string>) {
+  const { data } = await api.get('/analytics/bank-distribution', { params });
   return data as IApiResponse<BankDistribution[]>;
+}
+
+export async function getYearlyOverview(year?: number) {
+  const { data } = await api.get('/analytics/yearly-overview', { params: { year: year || new Date().getFullYear() } });
+  return data as IApiResponse<YearlyOverview>;
 }
 
 export async function getCardSpending(params?: Record<string, string>) {

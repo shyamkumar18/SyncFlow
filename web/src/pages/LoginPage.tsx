@@ -3,6 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useAuthStore } from '../store/authStore';
 import * as authService from '../services/auth';
+import Input from '../components/ui/Input';
+import Button from '../components/ui/Button';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -18,21 +20,12 @@ export default function LoginPage() {
     const token = searchParams.get('token');
     const refresh = searchParams.get('refresh');
     const err = searchParams.get('error');
-
-    if (err) {
-      setError('Google authentication failed. Please try again.');
-      return;
-    }
-
+    if (err) { setError('Google authentication failed. Please try again.'); return; }
     if (token && refresh) {
       sessionStorage.setItem('accessToken', token);
       localStorage.setItem('refreshToken', refresh);
-      authService.getProfile().then((user) => {
-        setAuth(user, token);
-        navigate('/dashboard', { replace: true });
-      }).catch(() => {
-        setError('Failed to load profile after Google sign-in.');
-      });
+      authService.getProfile().then((user) => { setAuth(user, token); navigate('/dashboard', { replace: true }); })
+        .catch(() => setError('Failed to load profile after Google sign-in.'));
     }
   }, [searchParams, navigate, setAuth]);
 
@@ -40,84 +33,36 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
-    try {
-      await login(email, password);
-      navigate('/dashboard', { replace: true });
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = () => {
-    const apiUrl = import.meta.env.VITE_API_URL || '/api';
-    window.location.href = `${apiUrl}/auth/google`;
+    try { await login(email, password); navigate('/dashboard', { replace: true }); }
+    catch (err: any) { setError(err.response?.data?.message || 'Login failed'); }
+    finally { setLoading(false); }
   };
 
   return (
     <div className="min-h-screen flex bg-white dark:bg-[#1A1D21]">
       <div className="flex-1 flex items-center justify-center px-6">
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-md animate-fade-in">
           <div className="text-center mb-8">
             <Link to="/" className="text-3xl font-bold text-primary-600">$yncFlow</Link>
             <p className="mt-2 text-gray-600 dark:text-gray-400">Welcome back</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {error && (
-              <div className="p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 rounded-lg">
-                {error}
-              </div>
-            )}
+            {error && <div className="p-3 text-sm text-red-600 bg-red-50 dark:bg-red-900/20 dark:text-red-400 rounded-lg">{error}</div>}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-[#23272E] text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                placeholder="you@example.com"
-                required
-              />
-            </div>
+            <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required autoFocus />
+            <Input label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-[#23272E] text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                placeholder="••••••••"
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full"
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
+            <Button type="submit" loading={loading} className="w-full">Sign In</Button>
           </form>
 
           <div className="mt-6">
             <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300 dark:border-gray-600" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white dark:bg-[#1A1D21] text-gray-500">or</span>
-              </div>
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-300 dark:border-gray-600" /></div>
+              <div className="relative flex justify-center text-sm"><span className="px-2 bg-white dark:bg-[#1A1D21] text-gray-500">or</span></div>
             </div>
-
-            <button
-              onClick={handleGoogleLogin}
-              className="w-full mt-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-[#23272E] transition-colors flex items-center justify-center gap-2"
-            >
+            <button onClick={() => { const apiUrl = import.meta.env.VITE_API_URL || '/api'; window.location.href = `${apiUrl}/auth/google`; }}
+              className="w-full mt-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-[#23272E] transition-colors flex items-center justify-center gap-2">
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/>
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -130,9 +75,7 @@ export default function LoginPage() {
 
           <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
             Don't have an account?{' '}
-            <Link to="/register" className="text-primary-600 font-medium hover:underline">
-              Register
-            </Link>
+            <Link to="/register" className="text-primary-600 font-medium hover:underline">Register</Link>
           </p>
         </div>
       </div>

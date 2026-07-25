@@ -54,3 +54,7 @@ export function getParser(bank: string): BankParser {
   parserCache.set(bank, fallback);
   return fallback;
 }
+
+export function clearParserCache(): void {
+  parserCache.clear();
+}

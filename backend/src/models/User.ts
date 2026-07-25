@@ -60,7 +60,6 @@ const userSchema = new Schema<IUser>(
   { timestamps: true },
 );
 
-userSchema.index({ email: 1 }, { unique: true });
-userSchema.index({ googleId: 1 }, { unique: true, sparse: true });
+// Indexes are defined via field-level unique constraints above
 
 export const User = mongoose.models.User || mongoose.model<IUser>('User', userSchema);

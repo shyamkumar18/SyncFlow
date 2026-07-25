@@ -1,9 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
+import { config } from '../config/env';
 
 export class AppError extends Error {
   constructor(
     message: string,
     public statusCode: number,
+    public errors?: Array<{ field: string; message: string }>,
   ) {
     super(message);
     this.name = 'AppError';
@@ -11,17 +13,29 @@ export class AppError extends Error {
   }
 }
 
-export function errorHandler(err: AppError & { errors?: Array<{ field: string; message: string }> }, _req: Request, res: Response, _next: NextFunction) {
+export function errorHandler(
+  err: AppError & { errors?: Array<{ field: string; message: string }> },
+  _req: Request,
+  res: Response,
+  _next: NextFunction,
+) {
   const statusCode = err.statusCode || 500;
-  const message = err.statusCode ? err.message : 'Internal server error';
 
   if (!err.statusCode) {
-    console.error('Unexpected error:', err);
+    console.error('Unhandled error:', err);
+  }
+
+  if (statusCode >= 500 && config.isProduction) {
+    res.status(statusCode).json({
+      success: false,
+      message: 'Internal server error',
+    });
+    return;
   }
 
   res.status(statusCode).json({
     success: false,
-    message,
+    message: err.message || 'Internal server error',
     ...(err.errors && { errors: err.errors }),
   });
 }

@@ -45,7 +45,6 @@ const gmailAccountSchema = new Schema<IGmailAccount>(
   { timestamps: true },
 );
 
-gmailAccountSchema.index({ userId: 1 }, { unique: true });
 gmailAccountSchema.index({ googleId: 1 });
 
 export const GmailAccount = mongoose.models.GmailAccount || mongoose.model<IGmailAccount>('GmailAccount', gmailAccountSchema);
