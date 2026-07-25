@@ -117,10 +117,11 @@ if (process.env.NODE_ENV !== 'test') {
         console.log('Server closed');
         process.exit(0);
       });
-      setTimeout(() => {
+      const forceExit = setTimeout(() => {
         console.error('Forced shutdown after timeout');
         process.exit(1);
-      }, 10000).unref();
+      }, 10000);
+      if (typeof forceExit === 'object' && 'unref' in forceExit) forceExit.unref();
     };
 
     process.on('SIGTERM', () => shutdown('SIGTERM'));

@@ -18,6 +18,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@types/node": "^22.5.0",
     "bcrypt": "^5.1.1",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
@@ -43,7 +44,6 @@
     "@types/imap": "^0.8.43",
     "@types/jsonwebtoken": "^9.0.6",
     "@types/morgan": "^1.9.9",
-    "@types/node": "^22.5.0",
     "@types/nodemailer": "^6.4.15",
     "@types/supertest": "^7.2.1",
     "@typescript-eslint/eslint-plugin": "^8.3.0",
