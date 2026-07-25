@@ -27,4 +27,4 @@ const bankSchema = new Schema<IBank>(
 
 bankSchema.index({ userId: 1, name: 1 }, { unique: true });
 
-export const Bank = mongoose.models.Bank || mongoose.model<IBank>('Bank', bankSchema);
+export const Bank = mongoose.model<IBank>('Bank', bankSchema);

@@ -32,4 +32,4 @@ const categorySchema = new Schema<ICategory>(
 categorySchema.index({ userId: 1, name: 1 }, { unique: true });
 categorySchema.index({ userId: 1, type: 1 });
 
-export const Category = mongoose.models.Category || mongoose.model<ICategory>('Category', categorySchema);
+export const Category = mongoose.model<ICategory>('Category', categorySchema);

@@ -47,4 +47,4 @@ const settingSchema = new Schema<ISetting>(
 
 // Index is defined via field-level unique constraint above
 
-export const Setting = mongoose.models.Setting || mongoose.model<ISetting>('Setting', settingSchema);
+export const Setting = mongoose.model<ISetting>('Setting', settingSchema);

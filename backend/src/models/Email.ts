@@ -62,4 +62,4 @@ emailSchema.index({ userId: 1, category: 1 });
 emailSchema.index({ userId: 1, bank: 1 });
 emailSchema.index({ userId: 1, isProcessed: 1 });
 
-export const Email = mongoose.models.Email || mongoose.model<IEmail>('Email', emailSchema);
+export const Email = mongoose.model<IEmail>('Email', emailSchema);

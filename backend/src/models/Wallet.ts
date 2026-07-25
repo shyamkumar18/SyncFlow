@@ -34,4 +34,4 @@ const walletSchema = new Schema<IWallet>(
 
 walletSchema.index({ userId: 1 });
 
-export const Wallet = mongoose.models.Wallet || mongoose.model<IWallet>('Wallet', walletSchema);
+export const Wallet = mongoose.model<IWallet>('Wallet', walletSchema);

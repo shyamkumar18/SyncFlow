@@ -41,4 +41,4 @@ const goalSchema = new Schema<IGoal>(
 goalSchema.index({ userId: 1, isActive: 1 });
 goalSchema.index({ userId: 1, isCompleted: 1 });
 
-export const Goal = mongoose.models.Goal || mongoose.model<IGoal>('Goal', goalSchema);
+export const Goal = mongoose.model<IGoal>('Goal', goalSchema);

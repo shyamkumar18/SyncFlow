@@ -58,4 +58,4 @@ const reviewItemSchema = new Schema<IReviewItem>(
 reviewItemSchema.index({ userId: 1, status: 1 });
 reviewItemSchema.index({ userId: 1, date: -1 });
 
-export const ReviewItem = mongoose.models.ReviewItem || mongoose.model<IReviewItem>('ReviewItem', reviewItemSchema);
+export const ReviewItem = mongoose.model<IReviewItem>('ReviewItem', reviewItemSchema);

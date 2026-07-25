@@ -62,4 +62,4 @@ const userSchema = new Schema<IUser>(
 
 // Indexes are defined via field-level unique constraints above
 
-export const User = mongoose.models.User || mongoose.model<IUser>('User', userSchema);
+export const User = mongoose.model<IUser>('User', userSchema);

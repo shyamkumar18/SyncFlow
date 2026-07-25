@@ -38,4 +38,4 @@ const cardSchema = new Schema<ICard>(
 
 cardSchema.index({ userId: 1 });
 
-export const Card = mongoose.models.Card || mongoose.model<ICard>('Card', cardSchema);
+export const Card = mongoose.model<ICard>('Card', cardSchema);

@@ -65,7 +65,7 @@ async function verifyIndexes() {
             (k) => existing.key[k] === expected.keys[k],
           ) && Object.keys(expected.keys).length === Object.keys(existing.key).length;
           if (!keyMatch) return false;
-          if (expected.options?.unique && !existing.options.unique) return false;
+          if ((expected.options as any)?.unique && !(existing.options as any).unique) return false;
           return true;
         });
 
