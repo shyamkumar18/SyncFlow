@@ -1,0 +1,39 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+.DS_Store
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# Backend
+backend/node_modules/
+backend/dist/
+
+# Web
+web/node_modules/
+web/dist/
+
+# Mobile
+mobile/.dart_tool/
+mobile/build/
+mobile/.packages
+mobile/.pub/
+mobile/android/.gradle/
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/*.iml
+mobile/.idea/
+mobile/android/key.properties
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
