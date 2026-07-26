@@ -8,8 +8,11 @@ import { parseGeneric } from '../../modules/bankDetection';
 import { computeFingerprint } from '../../modules/intelligence/duplicateDetection';
 import { normalizeMerchant } from '../../modules/intelligence/merchantNormalizer';
 import { categorize } from '../../modules/intelligence/autoCategorizer';
+import { detectPromotion } from '../../modules/intelligence/promotionDetector';
+import { findAndMergeDuplicate } from '../../modules/intelligence/dedupEngine';
 
 const REVIEW_CONFIDENCE_THRESHOLD = 40;
+const PROMOTION_GATE_THRESHOLD = 50;
 
 export interface ParseResult {
   processed: number;
@@ -18,18 +21,29 @@ export interface ParseResult {
   errors: number;
   duplicatesFound: number;
   sentForReview: number;
+  promotionsRejected: number;
 }
 
-async function checkDuplicate(fingerprint: string, userId: string): Promise<boolean> {
-  const existing = await Transaction.findOne({
-    userId,
-    transactionFingerprint: fingerprint,
-  }).lean();
-  return !!existing;
-}
+async function processEmail(email: any, userId: string): Promise<{
+  created: boolean;
+  duplicate: boolean;
+  review: boolean;
+  promotion: boolean;
+  merged: boolean;
+}> {
+  const subject = email.subject || '';
+  const bodyText = email.bodyText || '';
+  const body = email.body || '';
+  const snippet = email.snippet || '';
+  const text = `${subject} ${bodyText} ${body} ${snippet}`;
 
-async function processEmail(email: any, userId: string): Promise<{ created: boolean; duplicate: boolean; review: boolean }> {
-  const text = `${email.subject} ${email.bodyText || ''} ${email.body || ''} ${email.snippet || ''}`;
+  const promotionCheck = detectPromotion({ subject, bodyText, body, from: email.from });
+  if (promotionCheck.isPromotion && promotionCheck.confidence >= PROMOTION_GATE_THRESHOLD) {
+    await Email.findByIdAndUpdate(email._id, {
+      $set: { isProcessed: true, hasTransaction: false, category: 'unknown' },
+    });
+    return { created: false, duplicate: false, review: false, promotion: true, merged: false };
+  }
 
   let bank = email.bank;
   if (bank === 'Unknown' || !bank) {
@@ -49,39 +63,47 @@ async function processEmail(email: any, userId: string): Promise<{ created: bool
 
   if (!extracted.amount || !extracted.type) {
     await Email.findByIdAndUpdate(email._id, { $set: { isProcessed: true } });
-    return { created: false, duplicate: false, review: false };
+    return { created: false, duplicate: false, review: false, promotion: false, merged: false };
   }
 
   const parsed = parseGeneric(text);
-  const validation = validateTransaction(
-    parsed,
-    email.subject || '',
-    `${email.bodyText || ''} ${email.body || ''} ${email.snippet || ''}`,
-  );
+  const validation = validateTransaction(parsed, subject, `${bodyText} ${body} ${snippet}`);
 
   if (!validation.valid) {
     await Email.findByIdAndUpdate(email._id, {
       $set: { isProcessed: true, hasTransaction: false },
     });
-    return { created: false, duplicate: false, review: false };
+    return { created: false, duplicate: false, review: false, promotion: false, merged: false };
   }
 
-  const fingerprint = computeFingerprint({
-    amount: extracted.amount,
-    date: extracted.date || email.receivedAt,
-    type: extracted.type,
-    merchant: extracted.merchant,
-    referenceNumber: extracted.referenceNumber,
-    description: extracted.description || email.subject,
-    bank,
-  });
+  const dupResult = await findAndMergeDuplicate(
+    userId,
+    {
+      amount: extracted.amount,
+      type: extracted.type,
+      date: extracted.date || email.receivedAt,
+      time: extracted.time,
+      merchant: extracted.merchant,
+      referenceNumber: extracted.referenceNumber,
+      upiId: extracted.upiId,
+      bank,
+      description: extracted.description || email.subject,
+      sender: extracted.sender,
+      receiver: extracted.receiver,
+      emailThreadId: email.threadId,
+    },
+    email._id.toString(),
+  );
 
-  const isDuplicate = await checkDuplicate(fingerprint, userId);
-  if (isDuplicate) {
+  if (dupResult.isDuplicate) {
     await Email.findByIdAndUpdate(email._id, {
-      $set: { isProcessed: true, hasTransaction: false },
+      $set: {
+        isProcessed: true,
+        hasTransaction: true,
+        transactionId: dupResult.existingTransactionId,
+      },
     });
-    return { created: false, duplicate: true, review: false };
+    return { created: false, duplicate: true, review: false, promotion: false, merged: dupResult.merged };
   }
 
   const normResult = normalizeMerchant(extracted.merchant);
@@ -91,6 +113,16 @@ async function processEmail(email: any, userId: string): Promise<{ created: bool
     bank,
     amount: extracted.amount,
     type: extracted.type,
+  });
+
+  const fingerprint = computeFingerprint({
+    amount: extracted.amount,
+    date: extracted.date || email.receivedAt,
+    type: extracted.type,
+    merchant: extracted.merchant,
+    referenceNumber: extracted.referenceNumber,
+    description: extracted.description || email.subject,
+    bank,
   });
 
   const transactionData: Record<string, any> = {
@@ -143,20 +175,28 @@ async function processEmail(email: any, userId: string): Promise<{ created: bool
       $set: { isProcessed: true, hasTransaction: false },
     });
 
-    return { created: false, duplicate: false, review: true };
+    return { created: false, duplicate: false, review: true, promotion: false, merged: false };
   }
 
   const transaction = await Transaction.create(transactionData);
 
   await Email.findByIdAndUpdate(email._id, {
-    $set: { isProcessed: true, transactionId: transaction._id },
+    $set: { isProcessed: true, transactionId: transaction._id, hasTransaction: true },
   });
 
-  return { created: true, duplicate: false, review: false };
+  return { created: true, duplicate: false, review: false, promotion: false, merged: false };
 }
 
 export async function parseUnprocessedEmails(userId?: string): Promise<ParseResult> {
-  const result: ParseResult = { processed: 0, transactionsCreated: 0, skipped: 0, errors: 0, duplicatesFound: 0, sentForReview: 0 };
+  const result: ParseResult = {
+    processed: 0,
+    transactionsCreated: 0,
+    skipped: 0,
+    errors: 0,
+    duplicatesFound: 0,
+    sentForReview: 0,
+    promotionsRejected: 0,
+  };
 
   const filter: any = { isProcessed: false, hasTransaction: true };
   if (userId) filter.userId = userId;
@@ -171,6 +211,7 @@ export async function parseUnprocessedEmails(userId?: string): Promise<ParseResu
       if (outcome.created) result.transactionsCreated++;
       if (outcome.duplicate) result.duplicatesFound++;
       if (outcome.review) result.sentForReview++;
+      if (outcome.promotion) result.promotionsRejected++;
     } catch (err) {
       result.errors++;
       console.error(`Parse error for email ${email._id}:`, err);

@@ -27,10 +27,12 @@ export function validateTransaction(
   if (signals.merchant > 0) breakdown.push(`merchant:+${signals.merchant}`);
   if (signals.paymentMethod > 0) breakdown.push(`payment_method:+${signals.paymentMethod}`);
   if (signals.valueDate > 0) breakdown.push(`value_date:+${signals.valueDate}`);
+  if (signals.paymentConfirmation > 0) breakdown.push(`payment_confirm:+${signals.paymentConfirmation}`);
   if (penalties.marketing < 0) breakdown.push(`marketing_penalty:${penalties.marketing}`);
   if (penalties.notification < 0) breakdown.push(`notification_penalty:${penalties.notification}`);
   if (penalties.billReminder < 0) breakdown.push(`bill_reminder_penalty:${penalties.billReminder}`);
   if (penalties.generic < 0) breakdown.push(`generic_penalty:${penalties.generic}`);
+  if (penalties.offerAmount < 0) breakdown.push(`offer_amt_penalty:${penalties.offerAmount}`);
   breakdown.push(`total:${confidence}/${THRESHOLD}`);
 
   return {
@@ -43,7 +45,7 @@ export function validateTransaction(
   };
 }
 
-function computeSignals(text: string, extracted: ParsedTransaction): ValidationSignal {
+function computeSignals(text: string, extracted: ParsedTransaction): ValidationSignal & { paymentConfirmation: number } {
   let keyword = 0;
   let account = 0;
   let balance = 0;
@@ -51,6 +53,7 @@ function computeSignals(text: string, extracted: ParsedTransaction): ValidationS
   let merchant = 0;
   let paymentMethod = 0;
   let valueDate = 0;
+  let paymentConfirmation = 0;
 
   if (extracted.amount !== null) valueDate += 5;
   if (extracted.type !== null) valueDate += 5;
@@ -120,11 +123,14 @@ function computeSignals(text: string, extracted: ParsedTransaction): ValidationS
     if (p.test(text)) { merchant = 10; break; }
   }
 
-  const methodPatterns: RegExp[] = [
-    /\b(?:neft|rtgs|imps)\b/i, /\bupi\b/i, /\bpos\b/i, /\batm\b/i,
+  const methodPatterns: { re: RegExp; pts: number }[] = [
+    { re: /\b(?:neft|rtgs|imps)\b/i, pts: 15 },
+    { re: /\bupi\b/i, pts: 15 },
+    { re: /\bpos\b/i, pts: 15 },
+    { re: /\batm\b/i, pts: 15 },
   ];
-  for (const p of methodPatterns) {
-    if (p.test(text)) { paymentMethod = 15; break; }
+  for (const { re, pts } of methodPatterns) {
+    if (re.test(text)) { paymentMethod = Math.max(paymentMethod, pts); }
   }
 
   const datePatterns: RegExp[] = [
@@ -134,14 +140,26 @@ function computeSignals(text: string, extracted: ParsedTransaction): ValidationS
     if (p.test(text)) { valueDate += 5; break; }
   }
 
-  return { keyword, account, balance, reference, merchant, paymentMethod, valueDate };
+  const confirmPatterns: { re: RegExp; pts: number }[] = [
+    { re: /\b(?:upi|neft|rtgs|imps)\s+(?:successful|completed|credited|debited|done)\b/i, pts: 20 },
+    { re: /\b(?:transaction|txn)\s+(?:successful|completed|done|failed|declined)\b/i, pts: 15 },
+    { re: /\bps\s+to\s+\d+/i, pts: 10 },
+    { re: /\b(?:payment|txn)\s+(?:of|for)\s+(?:rs|inr|₹)\s*\d+/i, pts: 10 },
+    { re: /\b(?:amount|sum)\s+(?:debited|credited)\b/i, pts: 10 },
+  ];
+  for (const { re, pts } of confirmPatterns) {
+    if (re.test(text)) { paymentConfirmation += pts; }
+  }
+
+  return { keyword, account, balance, reference, merchant, paymentMethod, valueDate, paymentConfirmation };
 }
 
-function computePenalties(text: string): ValidationPenalties {
+function computePenalties(text: string): ValidationPenalties & { offerAmount: number } {
   let marketing = 0;
   let notification = 0;
   let billReminder = 0;
   let generic = 0;
+  let offerAmount = 0;
 
   const marketingPatterns: { re: RegExp; pts: number }[] = [
     { re: /\bcashback\b/i, pts: -60 },
@@ -164,9 +182,26 @@ function computePenalties(text: string): ValidationPenalties {
     { re: /\binvestment\s+(?:plan|opportunity|offer)\b/i, pts: -50 },
     { re: /mutual\s+fund/i, pts: -40 },
     { re: /advertisement/i, pts: -40 },
+    { re: /\b(?:pre[- ]?approved|preapproved)\b/i, pts: -55 },
+    { re: /\bapply\s+now\b/i, pts: -40 },
+    { re: /\b(?:book|buy)\s+now\b/i, pts: -40 },
+    { re: /lucky\s+draw/i, pts: -50 },
+    { re: /\brefer\s+(?:a\s+)?friend\b/i, pts: -40 },
+    { re: /\bupgrade\s+(?:to|your)\s+(?:account|card)\b/i, pts: -40 },
   ];
   for (const { re, pts } of marketingPatterns) {
     if (re.test(text)) marketing += pts;
+  }
+
+  const amountPromoPatterns: { re: RegExp; pts: number }[] = [
+    { re: /(?:rs\.?\s*|inr\s*|₹\s*)\s*\d[\d,]*\s+(?:credited|instantly|bonus|gift|reward|offer)/i, pts: -50 },
+    { re: /get\s+(?:rs\.?\s*|inr\s*|₹\s*)\s*\d[\d,]*/i, pts: -50 },
+    { re: /earn\s+(?:rs\.?\s*|inr\s*|₹\s*)\s*\d[\d,]*/i, pts: -45 },
+    { re: /(?:up\s+to|flat)\s+(?:rs\.?\s*|inr\s*|₹\s*)\s*\d[\d,]*/i, pts: -40 },
+    { re: /(?:rs\.?\s*|inr\s*|₹\s*)\s*\d[\d,]*\s+(?:cashback|cash\s+back)/i, pts: -55 },
+  ];
+  for (const { re, pts } of amountPromoPatterns) {
+    if (re.test(text)) offerAmount += pts;
   }
 
   const notificationPatterns: { re: RegExp; pts: number }[] = [
@@ -185,7 +220,7 @@ function computePenalties(text: string): ValidationPenalties {
     if (re.test(text)) notification += pts;
   }
 
-  const hasPaymentCompleted = /\b(?:debited|credited|paid|payment\s+completed)\b/i.test(text);
+  const hasPaymentCompleted = /\b(?:debited|credited|paid|payment\s+completed|purchased)\b/i.test(text);
   const billPatterns: { re: RegExp; pts: number }[] = [
     { re: /bill\s*(?:reminder|due|payment\s+due|pay\s+before)/i, pts: -40 },
     { re: /due\s+date/i, pts: -30 },
@@ -204,7 +239,7 @@ function computePenalties(text: string): ValidationPenalties {
     generic = -30;
   }
 
-  return { marketing, notification, billReminder, generic };
+  return { marketing, notification, billReminder, generic, offerAmount };
 }
 
 function extractedAmountFromText(text: string): number | null {

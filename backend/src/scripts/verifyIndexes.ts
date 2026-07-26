@@ -19,6 +19,7 @@ const modelsToVerify = [
       { keys: { userId: 1, status: 1 } },
       { keys: { userId: 1, merchant: 1 } },
       { keys: { userId: 1, date: -1, type: 1 } },
+      { keys: { userId: 1, amount: 1, type: 1, date: 1 } },
       { keys: { transactionFingerprint: 1 }, options: { sparse: true } },
     ],
   },

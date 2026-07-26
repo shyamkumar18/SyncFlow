@@ -77,5 +77,6 @@ transactionSchema.index({ userId: 1, category: 1 });
 transactionSchema.index({ userId: 1, status: 1 });
 transactionSchema.index({ userId: 1, merchant: 1 });
 transactionSchema.index({ userId: 1, date: -1, type: 1 });
+transactionSchema.index({ userId: 1, amount: 1, type: 1, date: 1 });
 
 export const Transaction = mongoose.model<ITransaction>('Transaction', transactionSchema);
