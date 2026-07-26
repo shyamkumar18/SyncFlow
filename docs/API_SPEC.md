@@ -3,7 +3,7 @@
 ## Base URL
 
 Development: `http://localhost:5000/api`
-Production: `https://api.syncflow.app/api`
+Production: `https://syncflow-api-mem4.onrender.com/api`
 
 ## Authentication
 
