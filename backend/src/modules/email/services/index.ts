@@ -49,10 +49,10 @@ export async function testEmailConnection(userId: string): Promise<EmailTestResu
   }
 
   try {
-    const result = await gmailImap.testConnection(userId, account.gmailEmail);
+    const result = await gmailImap.testConnection(userId);
     return {
       success: true,
-      message: 'IMAP connection successful',
+      message: 'Gmail API connection successful',
       latency: result.latencyMs,
     };
   } catch (err: any) {

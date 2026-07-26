@@ -50,9 +50,10 @@ export async function getFinancialSummary(params: FinancialSummaryParams): Promi
 
 export function monthStart(): Date {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1);
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
 
 export function yearStart(): Date {
-  return new Date(new Date().getFullYear(), 0, 1);
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
 }

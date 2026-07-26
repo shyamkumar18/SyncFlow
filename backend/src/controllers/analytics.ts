@@ -29,7 +29,15 @@ export const getOverview = async (req: Request, res: Response, next: NextFunctio
         .limit(10)
         .lean(),
       Transaction.aggregate([
-        { $match: { userId: new mongoose.Types.ObjectId(userId), date: { $gte: new Date(now.getFullYear() - 1, now.getMonth(), 1) } } },
+        {
+          $match: {
+            userId: new mongoose.Types.ObjectId(userId),
+            date: {
+              $gte: rangeStart,
+              ...(rangeEnd ? { $lte: rangeEnd } : { $lte: now }),
+            },
+          },
+        },
         {
           $group: {
             _id: { year: { $year: '$date' }, month: { $month: '$date' } },
@@ -47,6 +55,7 @@ export const getOverview = async (req: Request, res: Response, next: NextFunctio
         totalIncome: monthlySummary.totalIncome,
         totalExpense: monthlySummary.totalExpense,
         savings: monthlySummary.netSavings,
+        net: monthlySummary.netSavings,
         yearIncome: yearlySummary.totalIncome,
         yearExpense: yearlySummary.totalExpense,
         yearSavings: yearlySummary.netSavings,
@@ -80,8 +89,27 @@ export const spendingByCategory = async (req: Request, res: Response, next: Next
     const categories = await Transaction.aggregate([
       { $match: filter },
       {
+        $lookup: {
+          from: 'categories',
+          localField: 'category',
+          foreignField: '_id',
+          as: 'resolvedCategory',
+        },
+      },
+      {
+        $addFields: {
+          categoryName: {
+            $cond: {
+              if: { $gt: [{ $size: '$resolvedCategory' }, 0] },
+              then: { $arrayElemAt: ['$resolvedCategory.name', 0] },
+              else: { $ifNull: ['$autoCategory', 'Uncategorized'] },
+            },
+          },
+        },
+      },
+      {
         $group: {
-          _id: { $ifNull: ['$autoCategory', 'Uncategorized'] },
+          _id: '$categoryName',
           total: { $sum: '$amount' },
           count: { $sum: 1 },
         },
@@ -136,6 +164,7 @@ export const monthlyTrend = async (req: Request, res: Response, next: NextFuncti
   try {
     const months = Math.max(1, Math.min(60, Number(req.query.months) || 12));
     const startDate = new Date();
+    startDate.setDate(1);
     startDate.setMonth(startDate.getMonth() - months);
 
     const trends = await Transaction.aggregate([
@@ -247,8 +276,8 @@ function fillMonthlyGaps(data: Array<{ _id: { year: number; month: number } } & 
 export const yearlyOverview = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const year = parseInt(req.query.year as string) || new Date().getFullYear();
-    const startDate = new Date(year, 0, 1);
-    const endDate = new Date(year, 11, 31, 23, 59, 59);
+    const startDate = new Date(Date.UTC(year, 0, 1));
+    const endDate = new Date(Date.UTC(year, 11, 31, 23, 59, 59));
     const userId = new mongoose.Types.ObjectId(req.userId);
 
     const byMonth = await Transaction.aggregate([
@@ -272,7 +301,8 @@ export const yearlyOverview = async (req: Request, res: Response, next: NextFunc
     const highestIncome = [...monthly].sort((a, b) => b.income - a.income)[0];
     const highestExpense = [...monthly].sort((a, b) => b.expense - a.expense)[0];
     const avgMonthlySpend = totalExpense / 12;
-    const avgDaily = totalExpense / 365;
+    const daysInYear = (startDate.getFullYear() % 4 === 0 && (startDate.getFullYear() % 100 !== 0 || startDate.getFullYear() % 400 === 0)) ? 366 : 365;
+    const avgDaily = totalExpense / daysInYear;
 
     res.json({
       success: true,
@@ -301,6 +331,7 @@ export const cashFlow = async (req: Request, res: Response, next: NextFunction) 
   try {
     const months = Math.max(1, Math.min(60, Number(req.query.months) || 6));
     const startDate = new Date();
+    startDate.setDate(1);
     startDate.setMonth(startDate.getMonth() - months);
 
     const flow = await Transaction.aggregate([
